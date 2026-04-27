@@ -37,10 +37,10 @@ pipeline {
                                 aarch64) NODE_ARCH=linux-arm64 ;;
                                 *) echo "Unsupported machine (need Node binary): $ARCH"; exit 1 ;;
                             esac
-                            TARBALL="node-v${NODE_VERSION}-${NODE_ARCH}.tar.xz"
+                            TARBALL="node-v${NODE_VERSION}-${NODE_ARCH}.tar.gz"
                             URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
                             mkdir -p "${NODE_HOME}"
-                            curl -fsSL "$URL" | tar -xJ --strip-components=1 -C "${NODE_HOME}"
+                            curl -fsSL "$URL" | tar -xz --strip-components=1 -C "${NODE_HOME}"
                         '''
                         env.PATH = "${WORKSPACE}/.nodejs/bin:${env.PATH}"
                     }
