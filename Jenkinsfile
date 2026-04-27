@@ -9,12 +9,42 @@ pipeline {
         CONTAINER_NAME = 'test-ai-backend-container'
         APP_PORT = '3000'
         LOCAL_IMAGE = 'test-ai-backend'
+        // Used only when the agent has no Node/npm (see Setup Node stage)
+        NODE_VERSION = '20.18.0'
     }
 
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Setup Node') {
+            steps {
+                script {
+                    def hasNpm = sh(returnStatus: true, script: 'command -v npm >/dev/null 2>&1') == 0
+                    if (!hasNpm) {
+                        sh '''
+                            set -e
+                            NODE_HOME="${WORKSPACE}/.nodejs"
+                            if [ -x "${NODE_HOME}/bin/npm" ]; then
+                                exit 0
+                            fi
+                            ARCH="$(uname -m)"
+                            case "$ARCH" in
+                                x86_64) NODE_ARCH=linux-x64 ;;
+                                aarch64) NODE_ARCH=linux-arm64 ;;
+                                *) echo "Unsupported machine (need Node binary): $ARCH"; exit 1 ;;
+                            esac
+                            TARBALL="node-v${NODE_VERSION}-${NODE_ARCH}.tar.xz"
+                            URL="https://nodejs.org/dist/v${NODE_VERSION}/${TARBALL}"
+                            mkdir -p "${NODE_HOME}"
+                            curl -fsSL "$URL" | tar -xJ --strip-components=1 -C "${NODE_HOME}"
+                        '''
+                        env.PATH = "${WORKSPACE}/.nodejs/bin:${env.PATH}"
+                    }
+                }
             }
         }
 
