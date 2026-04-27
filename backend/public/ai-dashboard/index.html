@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI pipeline dashboard</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>AI pipeline dashboard</h1>
+        <p class="sub">
+          Aggregates Jenkins AI artifacts (<code>ai_report.txt</code>,
+          <code>security_report.txt</code>, etc.) from the repo root or
+          <code>AI_REPORTS_DIR</code>.
+        </p>
+      </div>
+      <button type="button" id="refresh" class="btn">Refresh</button>
+    </header>
+
+    <section class="meta" id="meta"></section>
+
+    <div class="grid" id="cards"></div>
+
+    <section class="raw" id="raw"></section>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>
