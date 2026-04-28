@@ -14,6 +14,7 @@ pipeline {
         // Standalone CPython from astral-sh (used when no system python3 / no root apt)
         PYTHON_STANDALONE_VER = '3.12.8'
         PYTHON_STANDALONE_RELEASE = '20241219'
+        PIP_DEFAULT_TIMEOUT = '180'
     }
 
     stages {
@@ -105,7 +106,14 @@ pipeline {
                 sh '''
                     set -e
                     ( cd backend && npm install )
-                    python3 -m pip install -r "${WORKSPACE}/ai/requirements.txt"
+                    n=0
+                    while [ "$n" -lt 3 ]; do
+                        n=$((n + 1))
+                        python3 -m pip install --retries 15 --default-timeout 180 --progress-bar off \
+                            -r "${WORKSPACE}/ai/requirements.txt" && break
+                        [ "$n" -ge 3 ] && exit 1
+                        sleep 20
+                    done
                 '''
             }
         }
