@@ -17,7 +17,7 @@ pipeline {
         PIP_DEFAULT_TIMEOUT = '180'
         // Static Docker CLI from download.docker.com (when `docker` is not on the agent)
         DOCKER_CLI_VERSION = '27.3.1'
-        DOCKER_BUILDKIT = '1'
+        DOCKER_BUILDKIT = '0'
     }
 
     stages {
