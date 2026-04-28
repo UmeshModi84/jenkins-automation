@@ -11,6 +11,9 @@ pipeline {
         LOCAL_IMAGE = 'test-ai-backend'
         // Used only when the agent has no Node/npm (see Setup Node stage)
         NODE_VERSION = '20.18.0'
+        // Standalone CPython from astral-sh (used when no system python3 / no root apt)
+        PYTHON_STANDALONE_VER = '3.12.8'
+        PYTHON_STANDALONE_RELEASE = '20241219'
     }
 
     stages {
@@ -48,12 +51,61 @@ pipeline {
             }
         }
 
+        stage('Setup Python') {
+            steps {
+                script {
+                    sh '''
+                        set -e
+                        have_py3() {
+                            command -v python3 >/dev/null 2>&1 && python3 -c "import sys; raise SystemExit(0 if sys.version_info>=(3,8) else 1)"
+                        }
+                        if [ -x "${WORKSPACE}/.cpython/python/bin/python3" ]; then
+                            export PATH="${WORKSPACE}/.cpython/python/bin:${PATH}"
+                        fi
+                        if have_py3; then exit 0; fi
+
+                        if command -v apt-get >/dev/null 2>&1 && [ "$(id -u)" -eq 0 ]; then
+                            export DEBIAN_FRONTEND=noninteractive
+                            apt-get update -qq
+                            apt-get install -y -qq python3 python3-pip python3-venv || true
+                        fi
+                        if have_py3; then exit 0; fi
+
+                        if command -v apk >/dev/null 2>&1 && [ "$(id -u)" -eq 0 ]; then
+                            apk add --no-cache python3 py3-pip || true
+                        fi
+                        if have_py3; then exit 0; fi
+
+                        PYTHON_HOME="${WORKSPACE}/.cpython"
+                        if [ -x "${PYTHON_HOME}/python/bin/python3" ]; then
+                            exit 0
+                        fi
+
+                        ARCH="$(uname -m)"
+                        case "$ARCH" in
+                            x86_64) PY_ARCH=x86_64-unknown-linux-gnu ;;
+                            aarch64) PY_ARCH=aarch64-unknown-linux-gnu ;;
+                            *) echo "Unsupported arch for bundled Python: $ARCH"; exit 1 ;;
+                        esac
+                        TARBALL="cpython-${PYTHON_STANDALONE_VER}+${PYTHON_STANDALONE_RELEASE}-${PY_ARCH}-install_only_stripped.tar.gz"
+                        URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PYTHON_STANDALONE_RELEASE}/${TARBALL}"
+                        mkdir -p "${PYTHON_HOME}"
+                        curl -fsSL "$URL" | tar -xz -C "${PYTHON_HOME}"
+                        test -x "${PYTHON_HOME}/python/bin/python3"
+                    '''
+                    if (fileExists("${env.WORKSPACE}/.cpython/python/bin/python3")) {
+                        env.PATH = "${env.WORKSPACE}/.cpython/python/bin:${env.PATH}"
+                    }
+                }
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
                 sh '''
                     set -e
-                    cd backend && npm install
-                    python3 -m pip install -r ai/requirements.txt
+                    ( cd backend && npm install )
+                    python3 -m pip install -r "${WORKSPACE}/ai/requirements.txt"
                 '''
             }
         }
