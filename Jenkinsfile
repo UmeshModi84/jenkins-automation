@@ -244,32 +244,6 @@ Fix on the server: mount the host socket into the Jenkins container (-v /var/run
             }
         }
 
-        stage('Docker Push') {
-            when {
-                expression {
-                    return env.DOCKER_DAEMON_OK == 'true'
-                }
-            }
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKERHUB_USER',
-                        passwordVariable: 'DOCKERHUB_PASS'
-                    )
-                ]) {
-                    sh '''
-                        set -e
-                        echo "${DOCKERHUB_PASS}" | docker login -u "${DOCKERHUB_USER}" --password-stdin
-                        docker tag ${LOCAL_IMAGE}:${BUILD_NUMBER} ${DOCKERHUB_USER}/${LOCAL_IMAGE}:${BUILD_NUMBER}
-                        docker tag ${LOCAL_IMAGE}:${BUILD_NUMBER} ${DOCKERHUB_USER}/${LOCAL_IMAGE}:latest
-                        docker push ${DOCKERHUB_USER}/${LOCAL_IMAGE}:${BUILD_NUMBER}
-                        docker push ${DOCKERHUB_USER}/${LOCAL_IMAGE}:latest
-                    '''
-                }
-            }
-        }
-
         stage('Deploy') {
             when {
                 expression {
