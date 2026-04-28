@@ -17,6 +17,7 @@ pipeline {
         PIP_DEFAULT_TIMEOUT = '180'
         // Static Docker CLI from download.docker.com (when `docker` is not on the agent)
         DOCKER_CLI_VERSION = '27.3.1'
+        DOCKER_BUILDKIT = '1'
     }
 
     stages {
@@ -209,6 +210,23 @@ pipeline {
                     set -e
                     exit "${AUDIT_RC}"
                 '''
+            }
+        }
+
+        stage('Verify Docker daemon') {
+            steps {
+                script {
+                    def rc = sh(returnStatus: true, script: 'docker info >/dev/null 2>&1')
+                    if (rc != 0) {
+                        error(
+                            'Docker CLI is installed but cannot reach the Docker daemon (default: unix:///var/run/docker.sock). ' +
+                            'If Jenkins itself runs in Docker, mount the host engine socket, e.g. add to the controller container: ' +
+                            '-v /var/run/docker.sock:/var/run/docker.sock ' +
+                            'and map the host docker group so the jenkins process can use the socket (e.g. group_add with the host GID from "getent group docker", or run the agent on the host with a real Docker service). ' +
+                            'Or set DOCKER_HOST in the job/agent to a reachable engine. This cannot be fixed from the Jenkinsfile alone.'
+                        )
+                    }
+                }
             }
         }
 
