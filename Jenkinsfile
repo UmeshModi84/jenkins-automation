@@ -179,17 +179,29 @@ pipeline {
 
         stage('AI Code Review') {
             steps {
-                sh '''
-                    set -e
-                    cd "${WORKSPACE}"
-                    python3 ai/code_review.py | tee ai_report.txt
-                    python3 ai/security_scanner.py > security_report.txt || true
-                    python3 ai/bug_predictor.py > bug_predictor_report.txt || true
-                    python3 ai/deploy_decision_ai.py | tee deploy_decision.json || true
-                    python3 ai/suggest_fix.py --code-review ai_report.txt --security security_report.txt || true
-                    printf "metric 100\\nmetric 102\\nmetric 500\\n" | python3 ai/anomaly_detector.py - || true
-                    python3 ai/auto_fix.py --dry-run || true
-                '''
+                script {
+                    def aiReviewBody = '''
+                        set -e
+                        cd "${WORKSPACE}"
+                        python3 ai/code_review.py | tee ai_report.txt
+                        python3 ai/security_scanner.py > security_report.txt || true
+                        python3 ai/bug_predictor.py > bug_predictor_report.txt || true
+                        python3 ai/deploy_decision_ai.py | tee deploy_decision.json || true
+                        python3 ai/suggest_fix.py --code-review ai_report.txt --security security_report.txt || true
+                        printf "metric 100\\nmetric 102\\nmetric 500\\n" | python3 ai/anomaly_detector.py - || true
+                        python3 ai/auto_fix.py --dry-run || true
+                    '''
+                    try {
+                        withCredentials([
+                            string(credentialsId: 'openai-api-key', variable: 'OPENAI_API_KEY')
+                        ]) {
+                            sh aiReviewBody
+                        }
+                    } catch (Exception e) {
+                        echo "Optional OpenAI: no usable credential 'openai-api-key' (${e.getClass().getSimpleName()}) — static scan only."
+                        sh aiReviewBody
+                    }
+                }
             }
         }
 

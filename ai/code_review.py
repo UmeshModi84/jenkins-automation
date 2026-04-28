@@ -82,6 +82,48 @@ def find_repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def enrich_with_openai(report: dict) -> None:
+    """Optional LLM summary; never raises — failures end up in report['openai_review']."""
+    api_key = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not api_key:
+        report["openai_review"] = {"enabled": False, "reason": "OPENAI_API_KEY not set"}
+        return
+    try:
+        from openai import OpenAI
+    except ImportError:
+        report["openai_review"] = {
+            "enabled": False,
+            "reason": "openai package missing; run: pip install -r ai/requirements.txt",
+        }
+        return
+
+    model = (os.environ.get("OPENAI_MODEL") or "gpt-4o-mini").strip()
+    blob = json.dumps(report, indent=2)
+    if len(blob) > 16000:
+        blob = blob[:16000] + "\n... [truncated for LLM context]"
+
+    prompt = (
+        "You are a senior engineer reviewing static scan output. "
+        "Prioritize by severity. Reply in markdown: a one-line summary, then numbered action items (max 8).\n\n"
+        f"```json\n{blob}\n```"
+    )
+    try:
+        client = OpenAI(api_key=api_key)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "Security-oriented code review. Be concise."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=900,
+            temperature=0.2,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        report["openai_review"] = {"enabled": True, "model": model, "markdown": text}
+    except Exception as e:
+        report["openai_review"] = {"enabled": True, "model": model, "error": str(e)}
+
+
 def main() -> int:
     root = find_repo_root()
     report = Report()
@@ -118,6 +160,8 @@ def main() -> int:
             ],
         },
     }
+
+    enrich_with_openai(out)
 
     print(json.dumps(out, indent=2))
     return 0
