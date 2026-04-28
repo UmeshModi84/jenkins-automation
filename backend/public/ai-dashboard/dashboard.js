@@ -94,6 +94,20 @@ function renderCodeReview(cr) {
       ['TODO markers', String(s.todo_hits ?? '—')],
     ])
   );
+  const oa = d.openai_review;
+  if (oa && oa.enabled && oa.markdown) {
+    const h = document.createElement('h3');
+    h.style.margin = '0.75rem 0 0.35rem';
+    h.style.fontSize = '0.95rem';
+    h.textContent = 'OpenAI summary';
+    wrap.appendChild(h);
+    const pre = document.createElement('pre');
+    pre.className = 'snippet';
+    pre.textContent = oa.markdown;
+    wrap.appendChild(pre);
+  } else if (oa && oa.enabled && oa.error) {
+    wrap.appendChild(pill(`OpenAI error: ${oa.error}`, 'warn'));
+  }
   return wrap;
 }
 

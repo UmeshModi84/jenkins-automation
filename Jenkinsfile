@@ -270,9 +270,15 @@ Fix on the server: mount the host socket into the Jenkins container (-v /var/run
                     docker rm ${CONTAINER_NAME} || true
                     docker run -d --name ${CONTAINER_NAME} \
                         -p ${APP_PORT}:3000 \
-                        -e AI_REPORTS_DIR=/reports \
-                        -v "${WORKSPACE}:/reports:ro" \
+                        -e AI_REPORTS_DIR=/app/var/ai-reports \
                         ${LOCAL_IMAGE}:${BUILD_NUMBER}
+                    # Jenkins-in-Docker: bind-mounting WORKSPACE often breaks on the host daemon path.
+                    # Copy artifacts into the image path the dashboard already searches (see backend aiDashboardRoutes.js).
+                    for f in ai_report.txt security_report.txt bug_predictor_report.txt deploy_decision.json; do
+                        if [ -f "${WORKSPACE}/${f}" ]; then
+                            docker cp "${WORKSPACE}/${f}" "${CONTAINER_NAME}:/app/var/ai-reports/${f}"
+                        fi
+                    done
                 '''
             }
         }
@@ -318,6 +324,9 @@ Fix on the server: mount the host socket into the Jenkins container (-v /var/run
                     set -e
                     cd "${WORKSPACE}"
                     docker logs ${CONTAINER_NAME} > docker_app.log 2>&1 || true
+                    if [ -f docker_app.log ]; then
+                        docker cp "${WORKSPACE}/docker_app.log" "${CONTAINER_NAME}:/app/var/ai-reports/docker_app.log" || true
+                    fi
                     python3 ai/log_analysis.py docker_app.log
                 '''
             }
