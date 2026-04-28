@@ -15,6 +15,8 @@ pipeline {
         PYTHON_STANDALONE_VER = '3.12.8'
         PYTHON_STANDALONE_RELEASE = '20241219'
         PIP_DEFAULT_TIMEOUT = '180'
+        // Static Docker CLI from download.docker.com (when `docker` is not on the agent)
+        DOCKER_CLI_VERSION = '27.3.1'
     }
 
     stages {
@@ -96,6 +98,40 @@ pipeline {
                     '''
                     if (fileExists("${env.WORKSPACE}/.cpython/python/bin/python3")) {
                         env.PATH = "${env.WORKSPACE}/.cpython/python/bin:${env.PATH}"
+                    }
+                }
+            }
+        }
+
+        stage('Setup Docker') {
+            steps {
+                script {
+                    sh '''
+                        set -e
+                        if command -v docker >/dev/null 2>&1; then
+                            exit 0
+                        fi
+                        CLI_HOME="${WORKSPACE}/.docker-cli"
+                        BIN="${CLI_HOME}/bin/docker"
+                        if [ -x "$BIN" ]; then
+                            exit 0
+                        fi
+
+                        mkdir -p "${CLI_HOME}/bin"
+                        ARCH="$(uname -m)"
+                        case "$ARCH" in
+                            x86_64) DARCH=x86_64 ;;
+                            aarch64) DARCH=aarch64 ;;
+                            *) echo "Unsupported arch for Docker static CLI: $ARCH"; exit 1 ;;
+                        esac
+                        URL="https://download.docker.com/linux/static/stable/${DARCH}/docker-${DOCKER_CLI_VERSION}.tgz"
+                        TMP="$(mktemp -d)"
+                        curl -fsSL "$URL" | tar -xz -C "$TMP"
+                        install -m 0755 "$TMP/docker/docker" "$BIN"
+                        rm -rf "$TMP"
+                    '''
+                    if (fileExists("${env.WORKSPACE}/.docker-cli/bin/docker")) {
+                        env.PATH = "${env.WORKSPACE}/.docker-cli/bin:${env.PATH}"
                     }
                 }
             }
