@@ -18,6 +18,7 @@ pipeline {
         // Static Docker CLI from download.docker.com (when `docker` is not on the agent)
         DOCKER_CLI_VERSION = '27.3.1'
         DOCKER_BUILDKIT = '0'
+        HEALTHCHECK_HOSTS = '127.0.0.1 172.17.0.1 host.docker.internal'
     }
 
     stages {
@@ -273,9 +274,23 @@ Fix on the server: mount the host socket into the Jenkins container (-v /var/run
             steps {
                 sh '''
                     set -e
-                    sleep 2
-                    curl -fsS "http://127.0.0.1:${APP_PORT}/health"
-                    curl -fsS "http://127.0.0.1:${APP_PORT}/ai-dashboard/" | grep -q "AI pipeline"
+                    PORT="${APP_PORT}"
+                    MAX_ROUNDS=20
+                    DELAY=3
+                    n=0
+                    while [ "$n" -lt "$MAX_ROUNDS" ]; do
+                        n=$((n + 1))
+                        for HOST in ${HEALTHCHECK_HOSTS}; do
+                            if curl -fsS -o /dev/null --connect-timeout 3 --max-time 15 "http://${HOST}:${PORT}/health" 2>/dev/null; then
+                                curl -fsS --max-time 15 "http://${HOST}:${PORT}/ai-dashboard/" | grep -q "AI pipeline"
+                                exit 0
+                            fi
+                        done
+                        sleep "$DELAY"
+                    done
+                    echo "Health check failed: tried hosts ${HEALTHCHECK_HOSTS} on port ${PORT} (${MAX_ROUNDS} rounds). Container logs:"
+                    docker logs "${CONTAINER_NAME}" 2>&1 | tail -80 || true
+                    exit 1
                 '''
             }
         }
